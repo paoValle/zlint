@@ -30,10 +30,11 @@ func TestSubscriberCertIssuedByCompromisedEmudhraCA(t *testing.T) {
 		inputPath string
 		expected  lint.LintStatus
 	}{
-		{"first compromised SKI", "subscriberIssuedByCompromisedEmudhraCAEvG3B.pem", lint.Error},
-		{"last compromised SKI", "subscriberIssuedByCompromisedEmudhraCACsG3C.pem", lint.Error},
-		{"unrelated issuer", "subscriberIssuedByUnrelatedCA.pem", lint.Pass},
-		{"CA certificate is not a subscriber", "caIssuedByCompromisedEmudhraCAAKI.pem", lint.NA},
+		{"EV G3B, signed with the compromised key", "emudhraEvG3BSubscriber.pem", lint.Error},
+		{"OV G3B, signed with the compromised key", "emudhraOvG3BSubscriber.pem", lint.Error},
+		{"EV G3C, signed with the compromised key", "emudhraEvG3CSubscriber.pem", lint.Error},
+		{"unrelated issuer", "sub1_val10_iat0_cdp0_ocsp0_eff1.pem", lint.Pass},
+		{"CA certificate is not a subscriber", "emudhraEvG3BIntermediate.pem", lint.NA},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
