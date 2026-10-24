@@ -67,7 +67,7 @@ func (l *subscriberCertIssuedByCompromisedEmudhraCA) Execute(c *x509.Certificate
 	if name, ok := compromisedEmudhraSKIs[hex.EncodeToString(c.AuthorityKeyId)]; ok {
 		return &lint.LintResult{
 			Status: lint.Error,
-			Details: fmt.Sprintf("issued by %q, an eMudhra intermediate CA whose private key was compromised; see %s",
+			Details: fmt.Sprintf("authority key identifier matches %q, an eMudhra intermediate CA whose private key was compromised; see %s",
 				name, compromisedEmudhraBugURL),
 		}
 	}
