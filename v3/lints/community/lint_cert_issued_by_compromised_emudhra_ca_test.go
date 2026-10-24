@@ -37,6 +37,18 @@ func TestCertIssuedByCompromisedEmudhraCA(t *testing.T) {
 		{"OV G3B subscriber, signed with the compromised key", "emudhraOvG3BSubscriber.pem", lint.Error},
 		// https://crt.sh/?id=29977124909
 		{"EV G3C subscriber, signed with the compromised key", "emudhraEvG3CSubscriber.pem", lint.Error},
+		// The following were not logged to CT: no certificate signed by these keys
+		// exists there. They were minted for this test with the private keys,
+		// which are small integers (OV G3C = 4, DV G3C = 230, DV G3B = 156,
+		// CS G3B = 66, CS G3C = 237) recovered by enumeration, and carry a
+		// throwaway leaf key and a "zlint.invalid" subject.
+		{"OV G3C, minted with the recovered key", "emudhraOvG3CMinted.pem", lint.Error},
+		{"DV G3C, minted with the recovered key", "emudhraDvG3CMinted.pem", lint.Error},
+		{"CS G3B, minted with the recovered key", "emudhraCsG3BMinted.pem", lint.Error},
+		// No AKI at all.
+		{"DV G3B, minted, no AKI", "emudhraDvG3BMintedNoAKI.pem", lint.Error},
+		// AKI of 20 bytes of 0x11, which is not any eMudhra SKI.
+		{"CS G3C, minted, wrong AKI", "emudhraCsG3CMintedWrongAKI.pem", lint.Error},
 		// Pre-existing test certificates in testdata/, not eMudhra certificates.
 		{"ECDSA-signed by an unrelated issuer", "aiaWithValidNames.pem", lint.Pass},
 		{"RSA-signed is filtered out", "sub1_val10_iat0_cdp0_ocsp0_eff1.pem", lint.NA},
