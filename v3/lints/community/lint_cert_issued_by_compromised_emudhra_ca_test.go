@@ -93,15 +93,14 @@ func TestCertIssuedByCompromisedEmudhraCAEmbeddedKeys(t *testing.T) {
 	}
 }
 
-func TestCertIssuedByCompromisedEmudhraCAUnparseableKeyIsFatal(t *testing.T) {
-	for name, spec := range map[string]compromisedEmudhraKeySpec{
-		"bad base64": {name: "bad base64", spki: "!!!"},
-		"bad SPKI":   {name: "bad SPKI", spki: "AAAA"},
+func TestParseCompromisedEmudhraKeysRejectsBadSpecs(t *testing.T) {
+	for name, spki := range map[string]string{
+		"bad base64": "!!!",
+		"bad SPKI":   "AAAA",
 	} {
 		t.Run(name, func(t *testing.T) {
-			out := checkSignedByCompromisedEmudhraKey(&x509.Certificate{}, []compromisedEmudhraKeySpec{spec})
-			if out.Status != lint.Fatal {
-				t.Errorf("expected %s, got %s", lint.Fatal, out.Status)
+			if _, err := parseCompromisedEmudhraKeys([]compromisedEmudhraKeySpec{{name: name, spki: spki}}); err == nil {
+				t.Error("expected a parse error")
 			}
 		})
 	}

@@ -129,13 +129,9 @@ func (l *certIssuedByCompromisedEmudhraCA) CheckApplies(c *x509.Certificate) boo
 }
 
 func (l *certIssuedByCompromisedEmudhraCA) Execute(c *x509.Certificate) *lint.LintResult {
-	return checkSignedByCompromisedEmudhraKey(c, compromisedEmudhraKeySpecs)
-}
-
-// checkSignedByCompromisedEmudhraKey reports Fatal, not Pass, if any key cannot
-// be parsed: the lint cannot answer without its full key list.
-func checkSignedByCompromisedEmudhraKey(c *x509.Certificate, specs []compromisedEmudhraKeySpec) *lint.LintResult {
-	keys, err := parseCompromisedEmudhraKeys(specs)
+	// A key that cannot be parsed is Fatal, not Pass: the lint cannot answer
+	// without its full key list.
+	keys, err := parseCompromisedEmudhraKeys(compromisedEmudhraKeySpecs)
 	if err != nil {
 		return &lint.LintResult{Status: lint.Fatal, Details: err.Error()}
 	}
