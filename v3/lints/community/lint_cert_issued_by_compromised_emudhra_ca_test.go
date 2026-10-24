@@ -37,8 +37,9 @@ func TestCertIssuedByCompromisedEmudhraCA(t *testing.T) {
 		{"OV G3B subscriber, signed with the compromised key", "emudhraOvG3BSubscriber.pem", lint.Error},
 		// https://crt.sh/?id=29977124909
 		{"EV G3C subscriber, signed with the compromised key", "emudhraEvG3CSubscriber.pem", lint.Error},
-		// Pre-existing test certificate in testdata/, not an eMudhra certificate.
-		{"unrelated issuer", "sub1_val10_iat0_cdp0_ocsp0_eff1.pem", lint.Pass},
+		// Pre-existing test certificates in testdata/, not eMudhra certificates.
+		{"ECDSA-signed by an unrelated issuer", "aiaWithValidNames.pem", lint.Pass},
+		{"RSA-signed is filtered out", "sub1_val10_iat0_cdp0_ocsp0_eff1.pem", lint.NA},
 		// https://crt.sh/?sha256=E7568FE6E12331F4FD7DE61DA4C7559D0F8EB192A218D4741A3BA75184333838
 		{"real intermediate, signed by the emSign root", "emudhraEvG3BIntermediate.pem", lint.Pass},
 	}
@@ -66,10 +67,14 @@ func TestCertIssuedByCompromisedEmudhraCAEmbeddedKeys(t *testing.T) {
 		"EM OV CS CA - G3B":  "79fae8eccfdb0d758da458d69fb6eddc7c49dee6",
 		"EM OV CS CA - G3C":  "ee6f73298d6fbfa7b31bc39534f61556447866b7",
 	}
-	if len(compromisedEmudhraKeys) != len(expectedSKIs) {
-		t.Fatalf("expected %d embedded keys, got %d", len(expectedSKIs), len(compromisedEmudhraKeys))
+	l := NewCertIssuedByCompromisedEmudhraCA().(*certIssuedByCompromisedEmudhraCA)
+	if l.err != nil {
+		t.Fatalf("embedded keys failed to parse: %v", l.err)
 	}
-	for _, k := range compromisedEmudhraKeys {
+	if len(l.keys) != len(expectedSKIs) {
+		t.Fatalf("expected %d embedded keys, got %d", len(expectedSKIs), len(l.keys))
+	}
+	for _, k := range l.keys {
 		want, ok := expectedSKIs[k.name]
 		if !ok {
 			t.Errorf("unexpected embedded key %q", k.name)
@@ -84,6 +89,38 @@ func TestCertIssuedByCompromisedEmudhraCAEmbeddedKeys(t *testing.T) {
 		sum := sha1.Sum(elliptic.Marshal(pub.Curve, pub.X, pub.Y))
 		if got := hex.EncodeToString(sum[:]); got != want {
 			t.Errorf("%s: key hashes to SKI %s, expected %s", k.name, got, want)
+		}
+	}
+}
+
+func TestCertIssuedByCompromisedEmudhraCAUnparseableKeyIsFatal(t *testing.T) {
+	for name, spec := range map[string]compromisedEmudhraKeySpec{
+		"bad base64": {name: "bad base64", spki: "!!!"},
+		"bad SPKI":   {name: "bad SPKI", spki: "AAAA"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			keys, err := parseCompromisedEmudhraKeys([]compromisedEmudhraKeySpec{spec})
+			if err == nil {
+				t.Fatal("expected a parse error")
+			}
+			l := &certIssuedByCompromisedEmudhraCA{keys: keys, err: err}
+			if out := l.Execute(&x509.Certificate{}); out.Status != lint.Fatal {
+				t.Errorf("expected %s, got %s", lint.Fatal, out.Status)
+			}
+		})
+	}
+}
+
+func TestCertIssuedByCompromisedEmudhraCACheckApplies(t *testing.T) {
+	l := NewCertIssuedByCompromisedEmudhraCA()
+	for algo, want := range map[x509.SignatureAlgorithm]bool{
+		x509.ECDSAWithSHA256:           true,
+		x509.ECDSAWithSHA384:           true,
+		x509.SHA256WithRSA:             false,
+		x509.UnknownSignatureAlgorithm: false,
+	} {
+		if got := l.CheckApplies(&x509.Certificate{SignatureAlgorithm: algo}); got != want {
+			t.Errorf("%s: expected CheckApplies %v, got %v", algo, want, got)
 		}
 	}
 }

@@ -36,10 +36,16 @@ func init() {
 	})
 }
 
-type certIssuedByCompromisedEmudhraCA struct{}
+type certIssuedByCompromisedEmudhraCA struct {
+	keys []compromisedEmudhraKey
+	// err is set if the embedded keys could not be parsed, in which case the
+	// lint cannot give a meaningful answer and Execute reports Fatal.
+	err error
+}
 
 func NewCertIssuedByCompromisedEmudhraCA() lint.LintInterface {
-	return &certIssuedByCompromisedEmudhraCA{}
+	keys, err := parseCompromisedEmudhraKeys(compromisedEmudhraKeySpecs)
+	return &certIssuedByCompromisedEmudhraCA{keys: keys, err: err}
 }
 
 const compromisedEmudhraBugURL = "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
@@ -53,10 +59,7 @@ const compromisedEmudhraBugURL = "https://bugzilla.mozilla.org/show_bug.cgi?id=2
 // certificate. The compromised private keys are trivially recoverable, so a
 // certificate minted with them can carry any AKI, or none, and clients still
 // chain it to these CAs by name and signature.
-var compromisedEmudhraKeySpecs = []struct {
-	name string
-	spki string
-}{
+var compromisedEmudhraKeySpecs = []compromisedEmudhraKeySpec{
 	{
 		name: "EM EV TLS CA - G3B",
 		spki: "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEJduoWmTTl9oLEFLp6lRuSHvv6pydnWigxerc/u91ppu11vwB9Cv7ym60C81kwHZ+Nv/QXZeoE8WqDGyVMOec9fCGZGjxOAZCCqXIUYQLHiUlQOeQ5LZUw4Uu1krx6GV9",
@@ -91,39 +94,51 @@ var compromisedEmudhraKeySpecs = []struct {
 	},
 }
 
+type compromisedEmudhraKeySpec struct {
+	name string
+	spki string
+}
+
 type compromisedEmudhraKey struct {
 	name string
 	key  interface{}
 }
 
-var compromisedEmudhraKeys = parseCompromisedEmudhraKeys()
-
-func parseCompromisedEmudhraKeys() []compromisedEmudhraKey {
-	keys := make([]compromisedEmudhraKey, 0, len(compromisedEmudhraKeySpecs))
-	for _, s := range compromisedEmudhraKeySpecs {
+func parseCompromisedEmudhraKeys(specs []compromisedEmudhraKeySpec) ([]compromisedEmudhraKey, error) {
+	keys := make([]compromisedEmudhraKey, 0, len(specs))
+	for _, s := range specs {
 		der, err := base64.StdEncoding.DecodeString(s.spki)
 		if err != nil {
-			panic(fmt.Sprintf("invalid base64 for %s: %v", s.name, err))
+			return nil, fmt.Errorf("invalid base64 for %s: %w", s.name, err)
 		}
 		key, err := x509.ParsePKIXPublicKey(der)
 		if err != nil {
-			panic(fmt.Sprintf("invalid public key for %s: %v", s.name, err))
+			return nil, fmt.Errorf("invalid public key for %s: %w", s.name, err)
 		}
 		keys = append(keys, compromisedEmudhraKey{name: s.name, key: key})
 	}
-	return keys
+	return keys, nil
 }
 
-// CheckApplies is always true: an intermediate minted with a compromised key
-// is as much a part of a chain to these CAs as a subscriber certificate is.
+// CheckApplies filters on the signature algorithm, since the compromised keys
+// are ECDSA keys and cannot have produced any other kind of signature. An
+// intermediate minted with a compromised key is as much a part of a chain to
+// these CAs as a subscriber certificate is, so CA certificates are included.
 // This lint can only see the certificate that was signed directly by a
 // compromised key, not certificates further down a chain.
 func (l *certIssuedByCompromisedEmudhraCA) CheckApplies(c *x509.Certificate) bool {
-	return true
+	switch c.SignatureAlgorithm {
+	case x509.ECDSAWithSHA1, x509.ECDSAWithSHA256, x509.ECDSAWithSHA384, x509.ECDSAWithSHA512:
+		return true
+	}
+	return false
 }
 
 func (l *certIssuedByCompromisedEmudhraCA) Execute(c *x509.Certificate) *lint.LintResult {
-	for _, k := range compromisedEmudhraKeys {
+	if l.err != nil {
+		return &lint.LintResult{Status: lint.Fatal, Details: l.err.Error()}
+	}
+	for _, k := range l.keys {
 		if x509.CheckSignatureFromKey(k.key, c.SignatureAlgorithm, c.RawTBSCertificate, c.Signature) == nil {
 			return &lint.LintResult{
 				Status: lint.Error,
