@@ -16,6 +16,7 @@ package community
 
 import (
 	"encoding/hex"
+	"fmt"
 
 	"github.com/zmap/zcrypto/x509"
 	"github.com/zmap/zlint/v3/lint"
@@ -41,6 +42,8 @@ func NewSubscriberCertIssuedByCompromisedEmudhraCA() lint.LintInterface {
 	return &subscriberCertIssuedByCompromisedEmudhraCA{}
 }
 
+const compromisedEmudhraBugURL = "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
+
 // compromisedEmudhraSKIs holds the Subject Key Identifiers (hex) of the eight
 // compromised eMudhra intermediate CA keys. Each key was certified twice, once
 // by the emSign root and once cross-signed by Sectigo, and both certificates
@@ -61,8 +64,12 @@ func (l *subscriberCertIssuedByCompromisedEmudhraCA) CheckApplies(c *x509.Certif
 }
 
 func (l *subscriberCertIssuedByCompromisedEmudhraCA) Execute(c *x509.Certificate) *lint.LintResult {
-	if _, ok := compromisedEmudhraSKIs[hex.EncodeToString(c.AuthorityKeyId)]; ok {
-		return &lint.LintResult{Status: lint.Error}
+	if name, ok := compromisedEmudhraSKIs[hex.EncodeToString(c.AuthorityKeyId)]; ok {
+		return &lint.LintResult{
+			Status: lint.Error,
+			Details: fmt.Sprintf("issued by %q, an eMudhra intermediate CA whose private key was compromised; see %s",
+				name, compromisedEmudhraBugURL),
+		}
 	}
 	return &lint.LintResult{Status: lint.Pass}
 }
