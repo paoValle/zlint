@@ -30,10 +30,15 @@ func TestSubscriberCertIssuedByCompromisedEmudhraCA(t *testing.T) {
 		inputPath string
 		expected  lint.LintStatus
 	}{
+		// https://crt.sh/?id=30010070587
 		{"EV G3B, signed with the compromised key", "emudhraEvG3BSubscriber.pem", lint.Error},
+		// https://crt.sh/?id=29977123837
 		{"OV G3B, signed with the compromised key", "emudhraOvG3BSubscriber.pem", lint.Error},
+		// https://crt.sh/?id=29977124909
 		{"EV G3C, signed with the compromised key", "emudhraEvG3CSubscriber.pem", lint.Error},
+		// Pre-existing test certificate in testdata/, not an eMudhra certificate.
 		{"unrelated issuer", "sub1_val10_iat0_cdp0_ocsp0_eff1.pem", lint.Pass},
+		// https://crt.sh/?sha256=E7568FE6E12331F4FD7DE61DA4C7559D0F8EB192A218D4741A3BA75184333838
 		{"CA certificate is not a subscriber", "emudhraEvG3BIntermediate.pem", lint.NA},
 	}
 	for _, tc := range testCases {
