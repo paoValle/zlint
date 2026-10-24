@@ -36,16 +36,10 @@ func init() {
 	})
 }
 
-type certIssuedByCompromisedEmudhraCA struct {
-	keys []compromisedEmudhraKey
-	// err is set if the embedded keys could not be parsed, in which case the
-	// lint cannot give a meaningful answer and Execute reports Fatal.
-	err error
-}
+type certIssuedByCompromisedEmudhraCA struct{}
 
 func NewCertIssuedByCompromisedEmudhraCA() lint.LintInterface {
-	keys, err := parseCompromisedEmudhraKeys(compromisedEmudhraKeySpecs)
-	return &certIssuedByCompromisedEmudhraCA{keys: keys, err: err}
+	return &certIssuedByCompromisedEmudhraCA{}
 }
 
 const compromisedEmudhraBugURL = "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
@@ -135,10 +129,17 @@ func (l *certIssuedByCompromisedEmudhraCA) CheckApplies(c *x509.Certificate) boo
 }
 
 func (l *certIssuedByCompromisedEmudhraCA) Execute(c *x509.Certificate) *lint.LintResult {
-	if l.err != nil {
-		return &lint.LintResult{Status: lint.Fatal, Details: l.err.Error()}
+	return checkSignedByCompromisedEmudhraKey(c, compromisedEmudhraKeySpecs)
+}
+
+// checkSignedByCompromisedEmudhraKey reports Fatal, not Pass, if any key cannot
+// be parsed: the lint cannot answer without its full key list.
+func checkSignedByCompromisedEmudhraKey(c *x509.Certificate, specs []compromisedEmudhraKeySpec) *lint.LintResult {
+	keys, err := parseCompromisedEmudhraKeys(specs)
+	if err != nil {
+		return &lint.LintResult{Status: lint.Fatal, Details: err.Error()}
 	}
-	for _, k := range l.keys {
+	for _, k := range keys {
 		if x509.CheckSignatureFromKey(k.key, c.SignatureAlgorithm, c.RawTBSCertificate, c.Signature) == nil {
 			return &lint.LintResult{
 				Status: lint.Error,
