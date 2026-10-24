@@ -70,20 +70,19 @@ func TestCertIssuedByCompromisedEmudhraCAEmbeddedKeys(t *testing.T) {
 	if len(compromisedEmudhraKeys) != len(expectedSKIs) {
 		t.Fatalf("expected %d embedded keys, got %d", len(expectedSKIs), len(compromisedEmudhraKeys))
 	}
-	for _, k := range compromisedEmudhraKeys {
-		want, ok := expectedSKIs[k.name]
+	for name, pub := range compromisedEmudhraKeys {
+		want, ok := expectedSKIs[name]
 		if !ok {
-			t.Errorf("unexpected embedded key %q", k.name)
+			t.Errorf("unexpected embedded key %q", name)
 			continue
 		}
-		pub := k.key
 		if pub.X == nil || pub.Y == nil || !pub.Curve.IsOnCurve(pub.X, pub.Y) {
-			t.Errorf("%s: not a valid P-384 point", k.name)
+			t.Errorf("%s: not a valid P-384 point", name)
 			continue
 		}
 		sum := sha1.Sum(elliptic.Marshal(pub.Curve, pub.X, pub.Y))
 		if got := hex.EncodeToString(sum[:]); got != want {
-			t.Errorf("%s: key hashes to SKI %s, expected %s", k.name, got, want)
+			t.Errorf("%s: key hashes to SKI %s, expected %s", name, got, want)
 		}
 	}
 }
