@@ -67,42 +67,24 @@ func TestCertIssuedByCompromisedEmudhraCAEmbeddedKeys(t *testing.T) {
 		"EM OV CS CA - G3B":  "79fae8eccfdb0d758da458d69fb6eddc7c49dee6",
 		"EM OV CS CA - G3C":  "ee6f73298d6fbfa7b31bc39534f61556447866b7",
 	}
-	keys, err := parseCompromisedEmudhraKeys(compromisedEmudhraKeySpecs)
-	if err != nil {
-		t.Fatalf("embedded keys failed to parse: %v", err)
+	if len(compromisedEmudhraKeys) != len(expectedSKIs) {
+		t.Fatalf("expected %d embedded keys, got %d", len(expectedSKIs), len(compromisedEmudhraKeys))
 	}
-	if len(keys) != len(expectedSKIs) {
-		t.Fatalf("expected %d embedded keys, got %d", len(expectedSKIs), len(keys))
-	}
-	for _, k := range keys {
+	for _, k := range compromisedEmudhraKeys {
 		want, ok := expectedSKIs[k.name]
 		if !ok {
 			t.Errorf("unexpected embedded key %q", k.name)
 			continue
 		}
-		aug, ok := k.key.(*x509.AugmentedECDSA)
-		if !ok {
-			t.Errorf("%s: expected an ECDSA key, got %T", k.name, k.key)
+		pub := k.key
+		if pub.X == nil || pub.Y == nil || !pub.Curve.IsOnCurve(pub.X, pub.Y) {
+			t.Errorf("%s: not a valid P-384 point", k.name)
 			continue
 		}
-		pub := aug.Pub
 		sum := sha1.Sum(elliptic.Marshal(pub.Curve, pub.X, pub.Y))
 		if got := hex.EncodeToString(sum[:]); got != want {
 			t.Errorf("%s: key hashes to SKI %s, expected %s", k.name, got, want)
 		}
-	}
-}
-
-func TestParseCompromisedEmudhraKeysRejectsBadSpecs(t *testing.T) {
-	for name, spki := range map[string]string{
-		"bad base64": "!!!",
-		"bad SPKI":   "AAAA",
-	} {
-		t.Run(name, func(t *testing.T) {
-			if _, err := parseCompromisedEmudhraKeys([]compromisedEmudhraKeySpec{{name: name, spki: spki}}); err == nil {
-				t.Error("expected a parse error")
-			}
-		})
 	}
 }
 
